@@ -57,9 +57,14 @@ NestJS REST API for ConnectHub, a community posts platform with JWT authenticati
 
 ```bash
 npm install
+npm run db:generate
 cp .env.example .env   # fill in your MySQL credentials
 npm run start:dev      # http://localhost:3000
 ```
+
+Prisma Client generation runs before production builds, after the schema is
+available to the build step. Run `npm run db:generate` after installing
+dependencies for local development.
 
 The API uses Prisma Migrate; it does not auto-create or synchronize tables at startup.
 For a **new empty database**, run `npm run db:migrate` before starting the API.
