@@ -39,6 +39,7 @@ export class AuthService {
       throw new ConflictException('Email already registered');
     }
 
+    console.log('Signing up user:', dto.email); // Debugging log
     const hashed = await bcrypt.hash(dto.password, 10);
     const user = await this.prisma.user.create({
       data: {
