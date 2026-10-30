@@ -26,6 +26,7 @@ export class PrismaService
         config.get('DB_SSL') === 'true'
           ? { rejectUnauthorized: false }
           : undefined,
+      connectTimeout: 10000,
       connectionLimit: 10,
     });
   }
