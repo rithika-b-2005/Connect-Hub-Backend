@@ -7,12 +7,15 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
-  const allowedOrigins = (
+  const configuredOrigins = (
     process.env.CORS_ORIGINS ?? 'http://localhost:5173'
   )
     .split(',')
     .map((origin) => origin.trim().replace(/\/+$/, ''))
     .filter(Boolean);
+  const allowedOrigins = configuredOrigins.includes('*')
+    ? '*'
+    : configuredOrigins;
   app.enableCors({ origin: allowedOrigins });
   app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads/' });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));

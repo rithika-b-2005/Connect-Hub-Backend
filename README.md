@@ -80,7 +80,10 @@ Configure the database credentials and `JWT_SECRET` in the deployment platform.
 Set `DB_SSL=true` for managed MySQL providers (e.g. Aiven) that require TLS.
 Set `CORS_ORIGINS` to a comma-separated list of trusted frontend origins, such
 as `https://your-frontend.netlify.app`; it defaults to `http://localhost:5173`
-for local development. Do not use `*` for an authenticated production API.
+for local development. Setting `CORS_ORIGINS=*` allows requests from any
+browser origin; use this only if that is intentional. Prefer listing trusted
+frontend origins. CORS does not authenticate users or make missing API routes
+available.
 
 ### Deploy as a Render web service
 
