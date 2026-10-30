@@ -1,19 +1,21 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Like } from '../entities/like.entity';
-import { Post } from '../entities/post.entity';
-import { User, UserRole } from '../entities/user.entity';
+import { UserRole } from '../common/enums';
+import { PrismaService } from '../prisma/prisma.service';
 
 type AuthUser = { id: number; role: UserRole };
 
+type RawChartRow = {
+  id: number | bigint;
+  title: string;
+  views: number | bigint;
+  createdAt: Date;
+  authorName: string | null;
+  likes: number | bigint;
+};
+
 @Injectable()
 export class AnalyticsService {
-  constructor(
-    @InjectRepository(Post) private postsRepo: Repository<Post>,
-    @InjectRepository(Like) private likesRepo: Repository<Like>,
-    @InjectRepository(User) private usersRepo: Repository<User>,
-  ) {}
+  constructor(private prisma: PrismaService) {}
 
   // Same endpoint for both roles: admin gets platform-wide numbers,
   // a regular user gets stats for their own posts only.
@@ -25,84 +27,104 @@ export class AnalyticsService {
 
   private async adminSummary() {
     const [totalPosts, totalLikes, totalUsers] = await Promise.all([
-      this.postsRepo.count(),
-      this.likesRepo.count(),
-      this.usersRepo.count(),
+      this.prisma.post.count(),
+      this.prisma.like.count(),
+      this.prisma.user.count(),
     ]);
 
-    const { totalViews } = await this.postsRepo
-      .createQueryBuilder('post')
-      .select('COALESCE(SUM(post.views), 0)', 'totalViews')
-      .getRawOne();
+    const viewsAgg = await this.prisma.post.aggregate({
+      _sum: { views: true },
+    });
 
-    const topPosts = await this.topPostsQuery().limit(5).getRawMany();
-
-    const likesPerPost = await this.topPostsQuery().limit(7).getRawMany();
+    const topPosts = await this.topPosts(5);
+    const likesPerPost = await this.topPosts(7);
 
     return {
       role: 'admin',
       stats: {
         totalPosts,
         totalLikes,
-        totalViews: Number(totalViews),
+        totalViews: Number(viewsAgg._sum.views ?? 0),
         totalUsers,
       },
-      likesPerPost: likesPerPost.map(this.toChartRow),
-      topPosts: topPosts.map(this.toChartRow),
+      likesPerPost,
+      topPosts,
     };
   }
 
   private async userSummary(userId: number) {
-    const myPosts = await this.postsRepo.count({
-      where: { author: { id: userId } },
+    const myPosts = await this.prisma.post.count({
+      where: { authorId: userId },
     });
 
-    const likesReceived = await this.likesRepo
-      .createQueryBuilder('like')
-      .innerJoin('like.post', 'post')
-      .where('post.authorId = :userId', { userId })
-      .getCount();
+    const likesReceived = await this.prisma.like.count({
+      where: { post: { authorId: userId } },
+    });
 
-    const { viewsReceived } = await this.postsRepo
-      .createQueryBuilder('post')
-      .select('COALESCE(SUM(post.views), 0)', 'viewsReceived')
-      .where('post.authorId = :userId', { userId })
-      .getRawOne();
+    const viewsAgg = await this.prisma.post.aggregate({
+      where: { authorId: userId },
+      _sum: { views: true },
+    });
 
-    const myRecent = await this.topPostsQuery()
-      .where('post.authorId = :userId', { userId })
-      .orderBy('post.createdAt', 'DESC')
-      .limit(7)
-      .getRawMany();
+    const myRecent = await this.topPosts(7, userId);
 
     return {
       role: 'user',
       stats: {
         myPosts,
         likesReceived,
-        viewsReceived: Number(viewsReceived),
+        viewsReceived: Number(viewsAgg._sum.views ?? 0),
       },
-      likesPerPost: myRecent.map(this.toChartRow),
-      recentPosts: myRecent.map(this.toChartRow),
+      likesPerPost: myRecent,
+      recentPosts: myRecent,
     };
   }
 
-  private topPostsQuery() {
-    return this.postsRepo
-      .createQueryBuilder('post')
-      .leftJoin('post.likes', 'like')
-      .leftJoin('post.author', 'author')
-      .select('post.id', 'id')
-      .addSelect('post.title', 'title')
-      .addSelect('post.views', 'views')
-      .addSelect('post.createdAt', 'createdAt')
-      .addSelect('author.name', 'authorName')
-      .addSelect('COUNT(like.id)', 'likes')
-      .groupBy('post.id')
-      .orderBy('likes', 'DESC');
+  // Prisma's groupBy cannot join author.name and cannot order by an
+  // aggregate, so this stays raw SQL. The column aliases and the aggregate
+  // semantics match what the chart and list on the dashboard read.
+  //
+  // CAST(... AS SIGNED) keeps the count a plain integer: MySQL returns
+  // COUNT() as a BIGINT, and a BigInt cannot be serialised to JSON.
+  private async topPosts(limit: number, authorId?: number) {
+    const rows =
+      authorId === undefined
+        ? await this.prisma.$queryRaw<RawChartRow[]>`
+            SELECT
+              p.id AS id,
+              p.title AS title,
+              p.views AS views,
+              p.createdAt AS createdAt,
+              u.name AS authorName,
+              CAST(COUNT(l.id) AS SIGNED) AS likes
+            FROM posts p
+            LEFT JOIN likes l ON l.postId = p.id
+            LEFT JOIN users u ON u.id = p.authorId
+            GROUP BY p.id, p.title, p.views, p.createdAt, u.name
+            ORDER BY likes DESC
+            LIMIT ${limit}
+          `
+        : await this.prisma.$queryRaw<RawChartRow[]>`
+            SELECT
+              p.id AS id,
+              p.title AS title,
+              p.views AS views,
+              p.createdAt AS createdAt,
+              u.name AS authorName,
+              CAST(COUNT(l.id) AS SIGNED) AS likes
+            FROM posts p
+            LEFT JOIN likes l ON l.postId = p.id
+            LEFT JOIN users u ON u.id = p.authorId
+            WHERE p.authorId = ${authorId}
+            GROUP BY p.id, p.title, p.views, p.createdAt, u.name
+            ORDER BY p.createdAt DESC
+            LIMIT ${limit}
+          `;
+
+    return rows.map((row) => this.toChartRow(row));
   }
 
-  private toChartRow(row: Record<string, unknown>) {
+  private toChartRow(row: RawChartRow) {
     return {
       id: Number(row.id),
       title: String(row.title),

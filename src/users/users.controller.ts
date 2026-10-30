@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -6,15 +7,22 @@ import {
   Param,
   ParseIntPipe,
   Patch,
+  Post,
   Query,
   Request,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
-import { UserRole } from '../entities/user.entity';
+import { UserRole } from '../common/enums';
+import { imageUploadOptions } from '../common/upload.config';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 import { UsersService } from './users.service';
 
 @Controller('users')
@@ -36,21 +44,56 @@ export class UsersController {
     return this.usersService.updateMe(req.user.id, dto);
   }
 
+  // Profile photos — multipart/form-data with single "file" field
+  @Post('me/avatar')
+  @Roles(UserRole.ADMIN, UserRole.USER)
+  @UseInterceptors(FileInterceptor('file', imageUploadOptions))
+  uploadAvatar(@Request() req, @UploadedFile() file?: Express.Multer.File) {
+    if (!file) throw new BadRequestException('No file uploaded');
+    return this.usersService.setPhoto(req.user.id, 'avatarUrl', file);
+  }
+
+  @Post('me/cover')
+  @Roles(UserRole.ADMIN, UserRole.USER)
+  @UseInterceptors(FileInterceptor('file', imageUploadOptions))
+  uploadCover(@Request() req, @UploadedFile() file?: Express.Multer.File) {
+    if (!file) throw new BadRequestException('No file uploaded');
+    return this.usersService.setPhoto(req.user.id, 'coverUrl', file);
+  }
+
   @Get()
   findAll(@Query('search') search?: string, @Query('role') role?: UserRole) {
     return this.usersService.findAll(search, role);
   }
 
-  @Patch(':id/role')
-  updateRole(
+  // --- admin operations on another account ---
+  // Declared after the "me" routes above so /users/me still resolves to the
+  // signed-in user's own profile.
+
+  @Get(':id')
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.usersService.findOne(id);
+  }
+
+  @Patch(':id')
+  update(
     @Param('id', ParseIntPipe) id: number,
-    @Body('role') role: UserRole,
+    @Body() dto: UpdateUserDto,
+    @Request() req,
   ) {
-    return this.usersService.updateRole(id, role);
+    return this.usersService.updateByAdmin(id, dto, req.user);
+  }
+
+  @Post(':id/reset-password')
+  resetPassword(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ResetPasswordDto,
+  ) {
+    return this.usersService.resetPassword(id, dto);
   }
 
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.usersService.remove(id);
+  remove(@Param('id', ParseIntPipe) id: number, @Request() req) {
+    return this.usersService.remove(id, req.user);
   }
 }

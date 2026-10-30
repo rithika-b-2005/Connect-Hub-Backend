@@ -1,53 +1,85 @@
 import {
+  BadRequestException,
   Injectable,
   NotFoundException,
   OnModuleInit,
   UnauthorizedException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
-import { Repository } from 'typeorm';
-import { User, UserRole } from '../entities/user.entity';
+import { randomBytes } from 'crypto';
+import { unlink } from 'fs/promises';
+import { join } from 'path';
+import { UserRole } from '../common/enums';
+import { publicUserSelect } from '../common/prisma-selects';
+import { Prisma } from '../generated/prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
+
+type Actor = { id: number; role: UserRole };
 
 @Injectable()
 export class UsersService implements OnModuleInit {
-  constructor(@InjectRepository(User) private usersRepo: Repository<User>) {}
+  constructor(
+    private prisma: PrismaService,
+    private config: ConfigService,
+  ) {}
 
-  // Seed a default admin on first boot so the app is usable immediately
+  // Seed a first admin so a fresh install is usable immediately.
+  //
+  // Not in production: a fixed default password on a live database is a
+  // standing credential, and this service would recreate it after every
+  // deletion. Outside production the password is random and printed once,
+  // so it is never a known value.
   async onModuleInit() {
-    const admin = await this.usersRepo.findOne({
-      where: { email: 'admin@connecthub.com' },
+    if (this.config.get('NODE_ENV') === 'production') return;
+
+    const email = 'admin@connecthub.com';
+    const existing = await this.prisma.user.findUnique({
+      where: { email },
+      select: { id: true },
     });
-    if (!admin) {
-      await this.usersRepo.save(
-        this.usersRepo.create({
-          name: 'Admin',
-          email: 'admin@connecthub.com',
-          password: await bcrypt.hash('admin123', 10),
-          role: UserRole.ADMIN,
-        }),
-      );
-    }
+    if (existing) return;
+
+    const password = randomBytes(9).toString('base64url');
+    await this.prisma.user.create({
+      data: {
+        name: 'Admin',
+        email,
+        password: await bcrypt.hash(password, 10),
+        role: UserRole.ADMIN,
+      },
+    });
+    console.warn(
+      `[seed] created admin "${email}" — password: ${password} (change it after signing in)`,
+    );
   }
 
   findAll(search?: string, role?: UserRole) {
-    const query = this.usersRepo.createQueryBuilder('user');
-
-    if (search) {
-      query.where('user.name LIKE :search OR user.email LIKE :search', {
-        search: `%${search}%`,
-      });
-    }
-    if (role) {
-      query.andWhere('user.role = :role', { role });
-    }
-
-    return query.orderBy('user.createdAt', 'DESC').getMany();
+    return this.prisma.user.findMany({
+      where: {
+        ...(search
+          ? {
+              OR: [
+                { name: { contains: search } },
+                { email: { contains: search } },
+              ],
+            }
+          : {}),
+        ...(role ? { role } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      select: publicUserSelect,
+    });
   }
 
   async getMe(id: number) {
-    const user = await this.usersRepo.findOne({ where: { id } });
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: publicUserSelect,
+    });
     if (!user) {
       throw new NotFoundException('User not found');
     }
@@ -55,13 +87,15 @@ export class UsersService implements OnModuleInit {
   }
 
   async updateMe(id: number, dto: UpdateProfileDto) {
-    const user = await this.usersRepo.findOne({
+    const user = await this.prisma.user.findUnique({
       where: { id },
-      select: ['id', 'name', 'email', 'password', 'role', 'createdAt'],
+      select: { ...publicUserSelect, password: true },
     });
     if (!user) {
       throw new NotFoundException('User not found');
     }
+
+    const data: Prisma.UserUpdateInput = {};
 
     if (dto.newPassword) {
       if (!dto.currentPassword) {
@@ -71,38 +105,176 @@ export class UsersService implements OnModuleInit {
       if (!valid) {
         throw new UnauthorizedException('Current password is incorrect');
       }
-      user.password = await bcrypt.hash(dto.newPassword, 10);
+      // Changing the hash also invalidates every token issued for this
+      // account — the token binding is derived from the hash.
+      data.password = await bcrypt.hash(dto.newPassword, 10);
     }
 
     if (dto.name) {
-      user.name = dto.name;
+      data.name = dto.name;
     }
 
-    const saved = await this.usersRepo.save(user);
+    return this.prisma.user.update({
+      where: { id },
+      data,
+      select: publicUserSelect,
+    });
+  }
+
+  async setPhoto(
+    id: number,
+    field: 'avatarUrl' | 'coverUrl',
+    file: Express.Multer.File,
+  ) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: publicUserSelect,
+    });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Replace, don't accumulate: remove the previous photo from disk
+    const old = user[field];
+    if (old) {
+      await unlink(join(process.cwd(), old.replace(/^\//, ''))).catch(
+        () => {},
+      );
+    }
+
+    return this.prisma.user.update({
+      where: { id },
+      data: { [field]: `/uploads/${file.filename}` },
+      select: publicUserSelect,
+    });
+  }
+
+  // --- admin operations ---
+
+  async findOne(id: number) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: publicUserSelect,
+    });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    return user;
+  }
+
+  async updateByAdmin(id: number, dto: UpdateUserDto, actor: Actor) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: publicUserSelect,
+    });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Changing your own role is how an admin locks themselves out.
+    if (dto.role !== undefined && id === actor.id) {
+      throw new BadRequestException('You cannot change your own role');
+    }
+
+    // Never demote the last admin — there would be nobody left to promote
+    // anyone else, and the whole admin API would be unreachable.
+    if (
+      dto.role !== undefined &&
+      dto.role !== user.role &&
+      user.role === UserRole.ADMIN
+    ) {
+      const adminCount = await this.prisma.user.count({
+        where: { role: UserRole.ADMIN },
+      });
+      if (adminCount <= 1) {
+        throw new BadRequestException(
+          'Cannot demote the last remaining admin',
+        );
+      }
+    }
+
+    const data: Prisma.UserUpdateInput = {};
+    if (dto.name !== undefined) {
+      data.name = dto.name;
+    }
+    if (dto.role !== undefined) {
+      data.role = dto.role;
+    }
+
+    return this.prisma.user.update({
+      where: { id },
+      data,
+      select: publicUserSelect,
+    });
+  }
+
+  async resetPassword(id: number, dto: ResetPasswordDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const generated = dto.newPassword ? undefined : randomBytes(9).toString('base64url');
+    const password = dto.newPassword ?? generated!;
+
+    await this.prisma.user.update({
+      where: { id },
+      data: { password: await bcrypt.hash(password, 10) },
+    });
+
+    // The new hash invalidates every token that account held.
     return {
-      id: saved.id,
-      name: saved.name,
-      email: saved.email,
-      role: saved.role,
-      createdAt: saved.createdAt,
+      message: 'Password reset. The user must sign in again.',
+      tempPassword: generated ?? null,
     };
   }
 
-  async updateRole(id: number, role: UserRole) {
-    const user = await this.usersRepo.findOne({ where: { id } });
-    if (!user) {
-      throw new NotFoundException('User not found');
+  async remove(id: number, actor: Actor) {
+    // Deleting yourself removes the only way back into the admin API.
+    if (id === actor.id) {
+      throw new BadRequestException('You cannot delete your own account');
     }
-    user.role = role;
-    return this.usersRepo.save(user);
-  }
 
-  async remove(id: number) {
-    const user = await this.usersRepo.findOne({ where: { id } });
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: publicUserSelect,
+    });
     if (!user) {
       throw new NotFoundException('User not found');
     }
-    await this.usersRepo.remove(user);
+
+    if (user.role === UserRole.ADMIN) {
+      const adminCount = await this.prisma.user.count({
+        where: { role: UserRole.ADMIN },
+      });
+      if (adminCount <= 1) {
+        throw new BadRequestException(
+          'Cannot delete the last remaining admin',
+        );
+      }
+    }
+
+    // The database cascades the rows; the files on disk do not — clean those
+    // up ourselves while we still know what they are.
+    const media = await this.prisma.postMedia.findMany({
+      where: { post: { authorId: id } },
+      select: { filename: true },
+    });
+    await Promise.all([
+      ...media.map((m) =>
+        unlink(join(process.cwd(), 'uploads', m.filename)).catch(() => {}),
+      ),
+      ...[user.avatarUrl, user.coverUrl]
+        .filter((u): u is string => !!u)
+        .map((u) =>
+          unlink(join(process.cwd(), u.replace(/^\//, ''))).catch(() => {}),
+        ),
+    ]);
+
+    await this.prisma.user.delete({ where: { id } });
     return { message: 'User deleted' };
   }
 }

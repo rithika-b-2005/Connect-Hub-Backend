@@ -1,0 +1,139 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+  runtime      = "nodejs"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+enum UserRole {
+  admin
+  user
+}
+
+enum MediaType {
+  image
+  video
+}
+
+enum PostStatus {
+  active
+  restricted
+  hidden
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(255)
+  email     String   @unique @db.VarChar(255)
+  password  String   @db.VarChar(255)
+  role      UserRole @default(user)
+  avatarUrl String?  @db.VarChar(255)
+  coverUrl  String?  @db.VarChar(255)
+  createdAt DateTime @default(now()) @db.DateTime(6)
+
+  posts         Post[]
+  likes         Like[]
+  comments      Comment[]
+  postViews     PostView[]
+  notifications Notification[]
+
+  @@map("users")
+}
+
+model Post {
+  id               Int        @id @default(autoincrement())
+  title            String     @db.VarChar(255)
+  description      String     @db.Text
+  views            Int        @default(0)
+  status           PostStatus @default(active)
+  moderationReason String?    @db.VarChar(1000)
+  moderatedAt      DateTime?  @db.DateTime(6)
+  authorId         Int?
+  author           User?      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  createdAt        DateTime   @default(now()) @db.DateTime(6)
+
+  media         PostMedia[]
+  likes         Like[]
+  comments      Comment[]
+  postViews     PostView[]
+  notifications Notification[]
+
+  // InnoDB creates an index for every foreign key that is not already
+  // covered by one, so these exist on the live database. Declaring them
+  // keeps Prisma's view of the schema equal to the real thing.
+  @@index([authorId])
+  @@map("posts")
+}
+
+model Like {
+  id        Int      @id @default(autoincrement())
+  userId    Int?
+  postId    Int?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @db.DateTime(6)
+
+  // one like per user per post
+  @@unique([userId, postId])
+  @@index([userId])
+  @@index([postId])
+  @@map("likes")
+}
+
+model Comment {
+  id        Int      @id @default(autoincrement())
+  content   String   @db.Text
+  userId    Int?
+  postId    Int?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @db.DateTime(6)
+
+  @@index([userId])
+  @@index([postId])
+  @@map("comments")
+}
+
+model PostView {
+  postId   Int
+  userId   Int
+  viewedAt DateTime @default(now()) @db.DateTime(6)
+  post     Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([postId, userId])
+  @@index([userId])
+  @@map("post_views")
+}
+
+model Notification {
+  id        Int       @id @default(autoincrement())
+  userId    Int
+  postId    Int?
+  type      String    @db.VarChar(32)
+  message   String    @db.VarChar(1000)
+  createdAt DateTime  @default(now()) @db.DateTime(6)
+  readAt    DateTime? @db.DateTime(6)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post?     @relation(fields: [postId], references: [id], onDelete: SetNull)
+
+  @@index([userId, readAt, createdAt])
+  @@map("notifications")
+}
+
+model PostMedia {
+  id       Int       @id @default(autoincrement())
+  filename String    @db.VarChar(255)
+  url      String    @db.VarChar(255)
+  type     MediaType
+  mimeType String    @db.VarChar(255)
+  postId   Int?
+  post     Post?     @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@map("post_media")
+}

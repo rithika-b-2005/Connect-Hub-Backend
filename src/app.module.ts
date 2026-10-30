@@ -1,43 +1,31 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { ConfigModule } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { AuthModule } from './auth/auth.module';
-import { Like } from './entities/like.entity';
-import { Post } from './entities/post.entity';
-import { User } from './entities/user.entity';
 import { PostsModule } from './posts/posts.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { PrismaModule } from './prisma/prisma.module';
 import { SeedModule } from './seed/seed.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    TypeOrmModule.forRootAsync({
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        type: 'mysql',
-        host: config.get('DB_HOST'),
-        port: config.get<number>('DB_PORT'),
-        username: config.get('DB_USERNAME'),
-        password: config.get('DB_PASSWORD'),
-        database: config.get('DB_NAME'),
-        // Managed MySQL providers (Aiven) require TLS connections
-        ssl:
-          config.get('DB_SSL') === 'true'
-            ? { rejectUnauthorized: false }
-            : undefined,
-        entities: [User, Post, Like],
-        // Auto-creates tables from entities. Dev convenience only;
-        // production would use migrations instead.
-        synchronize: true,
-      }),
-    }),
+    // Listed first so PrismaService is connected before the admin-seed and
+    // demo-seed services run their onModuleInit hooks.
+    PrismaModule,
+    // Baseline limit for the whole API. Endpoints that need a tighter limit
+    // (login) override it with @Throttle.
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
     AuthModule,
     UsersModule,
     PostsModule,
+    NotificationsModule,
     AnalyticsModule,
     SeedModule,
   ],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}

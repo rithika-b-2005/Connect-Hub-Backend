@@ -3,3 +3,6 @@ dist
 .env
 *.log
 coverage
+uploads
+src/generated
+.claude

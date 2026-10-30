@@ -3,45 +3,60 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
-import { Repository } from 'typeorm';
-import { User, UserRole } from '../entities/user.entity';
+import { UserRole } from '../common/enums';
+import { credentialUserSelect } from '../common/prisma-selects';
+import { signTokenBinding } from '../common/token-binding';
+import { PrismaService } from '../prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
 import { SignupDto } from './dto/signup.dto';
+
+type TokenUser = {
+  id: number;
+  name: string;
+  email: string;
+  password: string;
+  role: UserRole;
+  avatarUrl: string | null;
+};
 
 @Injectable()
 export class AuthService {
   constructor(
-    @InjectRepository(User) private usersRepo: Repository<User>,
+    private prisma: PrismaService,
     private jwtService: JwtService,
+    private config: ConfigService,
   ) {}
 
   async signup(dto: SignupDto) {
-    const exists = await this.usersRepo.findOne({
+    const exists = await this.prisma.user.findUnique({
       where: { email: dto.email },
+      select: { id: true },
     });
     if (exists) {
       throw new ConflictException('Email already registered');
     }
 
     const hashed = await bcrypt.hash(dto.password, 10);
-    const user = this.usersRepo.create({
-      name: dto.name,
-      email: dto.email,
-      password: hashed,
-      role: UserRole.USER,
+    const user = await this.prisma.user.create({
+      data: {
+        name: dto.name,
+        email: dto.email,
+        password: hashed,
+        role: UserRole.USER,
+      },
+      select: credentialUserSelect,
     });
-    await this.usersRepo.save(user);
 
     return this.buildToken(user);
   }
 
   async login(dto: LoginDto) {
-    const user = await this.usersRepo.findOne({
+    const user = await this.prisma.user.findUnique({
       where: { email: dto.email },
-      select: ['id', 'name', 'email', 'password', 'role'],
+      select: credentialUserSelect,
     });
     if (!user) {
       throw new UnauthorizedException('Invalid email or password');
@@ -55,8 +70,19 @@ export class AuthService {
     return this.buildToken(user);
   }
 
-  private buildToken(user: User) {
-    const payload = { sub: user.id, email: user.email, role: user.role };
+  private buildToken(user: TokenUser) {
+    const secret = this.config.getOrThrow<string>('JWT_SECRET');
+
+    // The token is bound to the account's current credential state. If the
+    // password is changed or the role changes, this binding stops matching
+    // and the strategy rejects the token.
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      ver: signTokenBinding(secret, user.password, user.role),
+    };
+
     return {
       accessToken: this.jwtService.sign(payload),
       user: {
@@ -64,6 +90,7 @@ export class AuthService {
         name: user.name,
         email: user.email,
         role: user.role,
+        avatarUrl: user.avatarUrl ?? null,
       },
     };
   }
