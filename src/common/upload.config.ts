@@ -1,21 +1,21 @@
-import { BadRequestException } from '@nestjs/common';
-import { MulterOptions } from '@nestjs/platform-express/multer/interfaces/multer-options.interface';
-import { randomBytes } from 'crypto';
-import { diskStorage } from 'multer';
+/**
+ * What may be uploaded, and what the stored file is called.
+ *
+ * The rules live here because both sides need them: the presign endpoint
+ * checks a request against them, and the object key is built from the MIME
+ * type that was accepted.
+ */
 
-export const MAX_MEDIA_FILES = 5;
-
-const IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-const VIDEO_MIME_TYPES = ['video/mp4', 'video/webm', 'video/quicktime'];
-
-// The stored extension is derived from the MIME type we validated, never
-// from the client-supplied filename.
-//
-// Both the Content-Type and the filename come from the client, so validating
-// one and trusting the other let an attacker store `evil.svg` (or .html)
-// behind an `image/png` Content-Type. The static file server then hands it
-// back as active content from our own origin.
-const EXT_BY_MIME: Record<string, string> = {
+/**
+ * The stored extension is derived from the MIME type we validated, never from
+ * the client-supplied filename.
+ *
+ * Both the Content-Type and the filename come from the client, so validating
+ * one and trusting the other let an attacker store `evil.svg` (or .html)
+ * behind an `image/png` Content-Type. The static file server then hands it
+ * back as active content from our own origin.
+ */
+export const EXT_BY_MIME: Record<string, string> = {
   'image/jpeg': '.jpg',
   'image/png': '.png',
   'image/gif': '.gif',
@@ -25,46 +25,12 @@ const EXT_BY_MIME: Record<string, string> = {
   'video/quicktime': '.mov',
 };
 
-const storage = diskStorage({
-  destination: './uploads',
-  filename: (_req, file, cb) => {
-    // Never trust the client filename; the fileFilter has already rejected
-    // anything whose MIME type is not in the map.
-    cb(null, `${randomBytes(16).toString('hex')}${EXT_BY_MIME[file.mimetype] ?? ''}`);
-  },
-});
+export const IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
-const fileFilterFor =
-  (allowed: string[], label: string): MulterOptions['fileFilter'] =>
-  (_req, file, cb) => {
-    if (allowed.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(
-        new BadRequestException(
-          `Unsupported file type: ${file.mimetype}. Allowed: ${label}`,
-        ),
-        false,
-      );
-    }
-  };
+export const VIDEO_MIME_TYPES = ['video/mp4', 'video/webm', 'video/quicktime'];
 
-// Post attachments: images + videos
-export const mediaUploadOptions: MulterOptions = {
-  storage,
-  limits: { fileSize: 50 * 1024 * 1024 },
-  fileFilter: fileFilterFor(
-    [...IMAGE_MIME_TYPES, ...VIDEO_MIME_TYPES],
-    'images (jpeg, png, gif, webp) and videos (mp4, webm, mov)',
-  ),
-};
+export const MEDIA_MIME_TYPES = [...IMAGE_MIME_TYPES, ...VIDEO_MIME_TYPES];
 
-// Profile photos: images only
-export const imageUploadOptions: MulterOptions = {
-  storage,
-  limits: { fileSize: 8 * 1024 * 1024 },
-  fileFilter: fileFilterFor(
-    IMAGE_MIME_TYPES,
-    'images (jpeg, png, gif, webp)',
-  ),
-};
+export function isVideoMimeType(mimeType: string): boolean {
+  return VIDEO_MIME_TYPES.includes(mimeType);
+}

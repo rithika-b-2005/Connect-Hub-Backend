@@ -116,6 +116,67 @@ Uploaded files currently use local disk storage. Ephemeral service filesystems
 can lose uploads during restarts or redeploys, so move uploads to durable object
 storage or attach a persistent disk before relying on production media uploads.
 
+### Media storage
+
+Images and videos live in an S3-compatible bucket — Cloudflare R2 by default.
+They do **not** live on this service's disk: Render's filesystem is ephemeral,
+so a file written there is gone after the next deploy, and the request body
+would have to carry the whole video through this process.
+
+The browser uploads the file itself:
+
+1. `POST /media/presign` with the kind, the MIME type and the size. The API
+   checks the type against the allowlist, builds a key and answers with a
+   presigned URL.
+2. The browser `PUT`s the bytes straight to the bucket.
+3. `POST /posts` (or `/users/me/avatar`) carries the key. The API derives the
+   URL, the type and the MIME type from the key, so a client cannot make the
+   app render an address of its choosing.
+
+**Cloudflare R2 setup**
+
+1. Dashboard → R2 → *Create bucket*, name it `connect-hub-media`.
+2. R2 → *Manage R2 API Tokens* → *Create API Token* → *Object Read & Write*.
+   Copy the **Access Key ID** and **Secret Access Key**.
+3. R2 → the bucket → *Settings* → *Public access* → *Connect a domain* (or use
+   the `r2.dev` address it offers for development).
+4. The bucket needs a CORS policy so the browser may PUT to it. Bucket →
+   *Settings* → *CORS policy*:
+
+   ```json
+   [
+     {
+       "AllowedOrigins": [
+         "https://connect-hub-frontend-1.onrender.com",
+         "http://localhost:5173",
+         "http://localhost:4173"
+       ],
+       "AllowedMethods": ["GET", "HEAD", "PUT"],
+       "AllowedHeaders": ["Content-Type"],
+       "ExposeHeaders": ["ETag"],
+       "MaxAgeSeconds": 3600
+     }
+   ]
+   ```
+
+5. Set these environment variables on the service:
+
+   | Variable | Value |
+   | --- | --- |
+   | `S3_ENDPOINT` | `https://<account-id>.r2.cloudflarestorage.com` |
+   | `S3_REGION` | `auto` |
+   | `S3_BUCKET` | `connect-hub-media` |
+   | `S3_ACCESS_KEY_ID` | from the API token |
+   | `S3_SECRET_ACCESS_KEY` | from the API token |
+   | `S3_PUBLIC_URL` | the bucket's public base, e.g. `https://pub-<hash>.r2.dev/connect-hub-media` |
+
+`GET /media/status` answers `{"configured": true}` once they are all set. Until
+then uploads are refused with a 503 and the app says so, rather than silently
+writing to a disk that will be wiped.
+
+The same code works with Backblaze B2 or AWS S3 — only the endpoint and the
+public base change.
+
 ### Database environment variables
 
 The service is configured with `DB_HOST`, `DB_PORT`, `DB_USERNAME`,

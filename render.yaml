@@ -25,3 +25,18 @@ services:
         generateValue: true
       - key: DATABASE_URL
         sync: false
+      # Media storage — an S3-compatible bucket (Cloudflare R2, Backblaze B2,
+      # AWS S3). Without these the API still runs, but uploads are refused
+      # with a 503 and the UI says so.
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_REGION
+        value: auto
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
+      - key: S3_PUBLIC_URL
+        sync: false

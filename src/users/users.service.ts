@@ -8,10 +8,9 @@ import {
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
-import { unlink } from 'fs/promises';
-import { join } from 'path';
 import { UserRole } from '../common/enums';
 import { publicUserSelect } from '../common/prisma-selects';
+import { deleteObject, keyFromUrl, publicUrlFor } from '../common/storage';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ResetPasswordDto } from './dto/reset-password.dto';
@@ -121,11 +120,7 @@ export class UsersService implements OnModuleInit {
     });
   }
 
-  async setPhoto(
-    id: string,
-    field: 'avatarUrl' | 'coverUrl',
-    file: Express.Multer.File,
-  ) {
+  async setPhoto(id: string, field: 'avatarUrl' | 'coverUrl', key: string) {
     const user = await this.prisma.user.findUnique({
       where: { id },
       select: publicUserSelect,
@@ -134,17 +129,16 @@ export class UsersService implements OnModuleInit {
       throw new NotFoundException('User not found');
     }
 
-    // Replace, don't accumulate: remove the previous photo from disk
+    // Replace, don't accumulate: remove the previous photo from the bucket
     const old = user[field];
     if (old) {
-      await unlink(join(process.cwd(), old.replace(/^\//, ''))).catch(
-        () => {},
-      );
+      const oldKey = keyFromUrl(old);
+      if (oldKey) await deleteObject(oldKey);
     }
 
     return this.prisma.user.update({
       where: { id },
-      data: { [field]: `/uploads/${file.filename}` },
+      data: { [field]: publicUrlFor(key) },
       select: publicUserSelect,
     });
   }
@@ -257,21 +251,20 @@ export class UsersService implements OnModuleInit {
       }
     }
 
-    // The database cascades the rows; the files on disk do not — clean those
-    // up ourselves while we still know what they are.
+    // The database cascades the rows; the objects in the bucket do not — clean
+    // those up ourselves while we still know what they are.
     const media = await this.prisma.postMedia.findMany({
       where: { post: { userId: id } },
       select: { filename: true },
     });
     await Promise.all([
-      ...media.map((m) =>
-        unlink(join(process.cwd(), 'uploads', m.filename)).catch(() => {}),
-      ),
+      ...media.map((m) => deleteObject(m.filename)),
       ...[user.avatarUrl, user.coverUrl]
         .filter((u): u is string => !!u)
-        .map((u) =>
-          unlink(join(process.cwd(), u.replace(/^\//, ''))).catch(() => {}),
-        ),
+        .map((u) => {
+          const key = keyFromUrl(u);
+          return key ? deleteObject(key) : Promise.resolve();
+        }),
     ]);
 
     await this.prisma.user.delete({ where: { id } });

@@ -10,16 +10,13 @@ import {
   Post,
   Query,
   Request,
-  UploadedFile,
   UseGuards,
-  UseInterceptors,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { UserRole } from '../common/enums';
-import { imageUploadOptions } from '../common/upload.config';
+import { PhotoRefDto } from './dto/photo-ref.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -44,21 +41,18 @@ export class UsersController {
     return this.usersService.updateMe(req.user.id, dto);
   }
 
-  // Profile photos — multipart/form-data with single "file" field
+  // Profile photos — the file was uploaded straight to the bucket, so the
+  // body only carries the key it was stored under.
   @Post('me/avatar')
   @Roles(UserRole.ADMIN, UserRole.USER)
-  @UseInterceptors(FileInterceptor('file', imageUploadOptions))
-  uploadAvatar(@Request() req, @UploadedFile() file?: Express.Multer.File) {
-    if (!file) throw new BadRequestException('No file uploaded');
-    return this.usersService.setPhoto(req.user.id, 'avatarUrl', file);
+  uploadAvatar(@Request() req, @Body() dto: PhotoRefDto) {
+    return this.usersService.setPhoto(req.user.id, 'avatarUrl', dto.key);
   }
 
   @Post('me/cover')
   @Roles(UserRole.ADMIN, UserRole.USER)
-  @UseInterceptors(FileInterceptor('file', imageUploadOptions))
-  uploadCover(@Request() req, @UploadedFile() file?: Express.Multer.File) {
-    if (!file) throw new BadRequestException('No file uploaded');
-    return this.usersService.setPhoto(req.user.id, 'coverUrl', file);
+  uploadCover(@Request() req, @Body() dto: PhotoRefDto) {
+    return this.usersService.setPhoto(req.user.id, 'coverUrl', dto.key);
   }
 
   @Get()

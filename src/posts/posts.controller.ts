@@ -8,11 +8,8 @@ import {
   ParseUUIDPipe,
   Post,
   Request,
-  UploadedFiles,
   UseGuards,
-  UseInterceptors,
 } from '@nestjs/common';
-import { FilesInterceptor } from '@nestjs/platform-express';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -20,7 +17,6 @@ import { UserRole } from '../common/enums';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { CreatePostDto } from './dto/create-post.dto';
 import { ModeratePostDto } from './dto/moderate-post.dto';
-import { MAX_MEDIA_FILES, mediaUploadOptions } from '../common/upload.config';
 import { PostsService } from './posts.service';
 
 @Controller('posts')
@@ -39,18 +35,13 @@ export class PostsController {
   }
 
   // Users create content; admin is a moderator, not a publisher.
-  // Accepts multipart/form-data: title, description + up to 5 "media" files
+  // The body is JSON: title, description and the keys of the files that were
+  // uploaded straight to the bucket. The files never pass through this
+  // service.
   @Post()
   @Roles(UserRole.USER)
-  @UseInterceptors(
-    FilesInterceptor('media', MAX_MEDIA_FILES, mediaUploadOptions),
-  )
-  create(
-    @Body() dto: CreatePostDto,
-    @UploadedFiles() files: Express.Multer.File[],
-    @Request() req,
-  ) {
-    return this.postsService.create(dto, files ?? [], req.user);
+  create(@Body() dto: CreatePostDto, @Request() req) {
+    return this.postsService.create(dto, req.user);
   }
 
   @Post(':id/like')

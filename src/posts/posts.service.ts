@@ -4,13 +4,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { unlink } from 'fs/promises';
-import { join } from 'path';
 import { MediaType, UserRole } from '../common/enums';
 import { PostStatus } from '../generated/prisma/client';
 import { likerIdSelect } from '../common/prisma-selects';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { deleteObject, mimeTypeForKey, publicUrlFor } from '../common/storage';
+import { isVideoMimeType } from '../common/upload.config';
 import { CreatePostDto } from './dto/create-post.dto';
 
 type AuthUser = { id: string; role: UserRole };
@@ -189,23 +189,30 @@ export class PostsService {
     });
   }
 
-  async create(dto: CreatePostDto, files: Express.Multer.File[], me: AuthUser) {
+  async create(dto: CreatePostDto, me: AuthUser) {
+    const media = dto.media ?? [];
+
     return this.prisma.post.create({
       data: {
         title: dto.title,
         description: dto.description,
         author: { connect: { id: me.id } },
-        // TypeORM's `cascade: true` on the media relation becomes a nested
-        // create — the media rows are written in the same transaction.
+        // The media rows are written in the same transaction as the post.
+        // Everything about the file — the URL, the type, the MIME type — is
+        // derived from the key, so the client cannot point the app at an
+        // address of its choosing.
         media: {
-          create: files.map((f) => ({
-            filename: f.filename,
-            url: `/uploads/${f.filename}`,
-            type: f.mimetype.startsWith('video/')
-              ? MediaType.VIDEO
-              : MediaType.IMAGE,
-            mimeType: f.mimetype,
-          })),
+          create: media.map((m) => {
+            const mimeType = mimeTypeForKey(m.key);
+            return {
+              filename: m.key,
+              url: publicUrlFor(m.key),
+              type: isVideoMimeType(mimeType)
+                ? MediaType.VIDEO
+                : MediaType.IMAGE,
+              mimeType,
+            };
+          }),
         },
       },
     });
@@ -330,12 +337,8 @@ export class PostsService {
 
     await this.prisma.post.delete({ where: { id: postId } });
 
-    // DB rows cascade; files on disk don't — clean them up ourselves
-    await Promise.all(
-      post.media.map((m) =>
-        unlink(join(process.cwd(), 'uploads', m.filename)).catch(() => {}),
-      ),
-    );
+    // The rows cascade; the objects in the bucket do not. Clean them up.
+    await Promise.all(post.media.map((m) => deleteObject(m.filename)));
 
     return { message: 'Post deleted' };
   }

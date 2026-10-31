@@ -1,7 +1,6 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
-import { join } from 'path';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -27,7 +26,9 @@ async function bootstrap() {
     .map((origin) => origin.trim().replace(/\/+$/, ''))
     .filter(Boolean);
   app.enableCors({ origin: allowedOrigins });
-  app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads/' });
+  // Media is served from the bucket, not from here: this service never holds
+  // the bytes, so there is no directory to expose and no file to lose when the
+  // service is redeployed.
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
   // Required so PrismaService.onModuleDestroy runs $disconnect() on SIGTERM
   // and the connection pool is not leaked on shutdown.
