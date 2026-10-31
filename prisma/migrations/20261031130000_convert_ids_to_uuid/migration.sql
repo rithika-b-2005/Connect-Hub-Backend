@@ -1,6 +1,6 @@
 CREATE TEMPORARY TABLE `_uuid_map_users` (
     `old_id` INTEGER NOT NULL PRIMARY KEY,
-    `new_id` CHAR(36) NOT NULL
+    `new_id` CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL
 ) ENGINE=InnoDB;
 CREATE TEMPORARY TABLE `_uuid_map_posts` LIKE `_uuid_map_users`;
 CREATE TEMPORARY TABLE `_uuid_map_likes` LIKE `_uuid_map_users`;
@@ -22,28 +22,28 @@ INSERT INTO `_uuid_map_post_media` (`old_id`, `new_id`)
 SELECT `id`, UUID() FROM `post_media`;
 
 ALTER TABLE `users`
-    ADD COLUMN `id_uuid` CHAR(36) NULL;
+    ADD COLUMN `id_uuid` CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL;
 ALTER TABLE `posts`
-    ADD COLUMN `id_uuid` CHAR(36) NULL,
-    ADD COLUMN `userId_uuid` CHAR(36) NULL;
+    ADD COLUMN `id_uuid` CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
+    ADD COLUMN `userId_uuid` CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL;
 ALTER TABLE `likes`
-    ADD COLUMN `id_uuid` CHAR(36) NULL,
-    ADD COLUMN `userId_uuid` CHAR(36) NULL,
-    ADD COLUMN `postId_uuid` CHAR(36) NULL;
+    ADD COLUMN `id_uuid` CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
+    ADD COLUMN `userId_uuid` CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
+    ADD COLUMN `postId_uuid` CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL;
 ALTER TABLE `comments`
-    ADD COLUMN `id_uuid` CHAR(36) NULL,
-    ADD COLUMN `userId_uuid` CHAR(36) NULL,
-    ADD COLUMN `postId_uuid` CHAR(36) NULL;
+    ADD COLUMN `id_uuid` CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
+    ADD COLUMN `userId_uuid` CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
+    ADD COLUMN `postId_uuid` CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL;
 ALTER TABLE `post_views`
-    ADD COLUMN `postId_uuid` CHAR(36) NULL,
-    ADD COLUMN `userId_uuid` CHAR(36) NULL;
+    ADD COLUMN `postId_uuid` CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
+    ADD COLUMN `userId_uuid` CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL;
 ALTER TABLE `notifications`
-    ADD COLUMN `id_uuid` CHAR(36) NULL,
-    ADD COLUMN `userId_uuid` CHAR(36) NULL,
-    ADD COLUMN `postId_uuid` CHAR(36) NULL;
+    ADD COLUMN `id_uuid` CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
+    ADD COLUMN `userId_uuid` CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
+    ADD COLUMN `postId_uuid` CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL;
 ALTER TABLE `post_media`
-    ADD COLUMN `id_uuid` CHAR(36) NULL,
-    ADD COLUMN `postId_uuid` CHAR(36) NULL;
+    ADD COLUMN `id_uuid` CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
+    ADD COLUMN `postId_uuid` CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL;
 
 UPDATE `users` u
 JOIN `_uuid_map_users` m ON m.`old_id` = u.`id`
@@ -283,15 +283,15 @@ DEALLOCATE PREPARE migration_stmt;
 ALTER TABLE `users`
     DROP PRIMARY KEY,
     DROP COLUMN `id`,
-    CHANGE COLUMN `id_uuid` `id` CHAR(36) NOT NULL,
+    CHANGE COLUMN `id_uuid` `id` CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
     ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `posts`
     DROP PRIMARY KEY,
     DROP COLUMN `id`,
     DROP COLUMN `authorId`,
-    CHANGE COLUMN `id_uuid` `id` CHAR(36) NOT NULL,
-    CHANGE COLUMN `userId_uuid` `userId` CHAR(36) NULL,
+    CHANGE COLUMN `id_uuid` `id` CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+    CHANGE COLUMN `userId_uuid` `userId` CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
     ADD PRIMARY KEY (`id`),
     ADD INDEX `posts_userId_idx` (`userId`);
 
@@ -300,9 +300,9 @@ ALTER TABLE `likes`
     DROP COLUMN `id`,
     DROP COLUMN `userId`,
     DROP COLUMN `postId`,
-    CHANGE COLUMN `id_uuid` `id` CHAR(36) NOT NULL,
-    CHANGE COLUMN `userId_uuid` `userId` CHAR(36) NULL,
-    CHANGE COLUMN `postId_uuid` `postId` CHAR(36) NULL,
+    CHANGE COLUMN `id_uuid` `id` CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+    CHANGE COLUMN `userId_uuid` `userId` CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
+    CHANGE COLUMN `postId_uuid` `postId` CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
     ADD PRIMARY KEY (`id`),
     ADD UNIQUE INDEX `likes_userId_postId_key` (`userId`, `postId`),
     ADD INDEX `likes_userId_idx` (`userId`),
@@ -313,9 +313,9 @@ ALTER TABLE `comments`
     DROP COLUMN `id`,
     DROP COLUMN `userId`,
     DROP COLUMN `postId`,
-    CHANGE COLUMN `id_uuid` `id` CHAR(36) NOT NULL,
-    CHANGE COLUMN `userId_uuid` `userId` CHAR(36) NULL,
-    CHANGE COLUMN `postId_uuid` `postId` CHAR(36) NULL,
+    CHANGE COLUMN `id_uuid` `id` CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+    CHANGE COLUMN `userId_uuid` `userId` CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
+    CHANGE COLUMN `postId_uuid` `postId` CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
     ADD PRIMARY KEY (`id`),
     ADD INDEX `comments_userId_idx` (`userId`),
     ADD INDEX `comments_postId_idx` (`postId`);
@@ -324,8 +324,8 @@ ALTER TABLE `post_views`
     DROP PRIMARY KEY,
     DROP COLUMN `postId`,
     DROP COLUMN `userId`,
-    CHANGE COLUMN `postId_uuid` `postId` CHAR(36) NOT NULL,
-    CHANGE COLUMN `userId_uuid` `userId` CHAR(36) NOT NULL,
+    CHANGE COLUMN `postId_uuid` `postId` CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+    CHANGE COLUMN `userId_uuid` `userId` CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
     ADD PRIMARY KEY (`postId`, `userId`),
     ADD INDEX `post_views_userId_idx` (`userId`);
 
@@ -334,9 +334,9 @@ ALTER TABLE `notifications`
     DROP COLUMN `id`,
     DROP COLUMN `userId`,
     DROP COLUMN `postId`,
-    CHANGE COLUMN `id_uuid` `id` CHAR(36) NOT NULL,
-    CHANGE COLUMN `userId_uuid` `userId` CHAR(36) NOT NULL,
-    CHANGE COLUMN `postId_uuid` `postId` CHAR(36) NULL,
+    CHANGE COLUMN `id_uuid` `id` CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+    CHANGE COLUMN `userId_uuid` `userId` CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+    CHANGE COLUMN `postId_uuid` `postId` CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
     ADD PRIMARY KEY (`id`),
     ADD INDEX `notifications_userId_readAt_createdAt_idx` (`userId`, `readAt`, `createdAt`);
 
@@ -344,8 +344,8 @@ ALTER TABLE `post_media`
     DROP PRIMARY KEY,
     DROP COLUMN `id`,
     DROP COLUMN `postId`,
-    CHANGE COLUMN `id_uuid` `id` CHAR(36) NOT NULL,
-    CHANGE COLUMN `postId_uuid` `postId` CHAR(36) NULL,
+    CHANGE COLUMN `id_uuid` `id` CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+    CHANGE COLUMN `postId_uuid` `postId` CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
     ADD PRIMARY KEY (`id`),
     ADD INDEX `post_media_postId_idx` (`postId`);
 
