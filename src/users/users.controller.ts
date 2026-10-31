@@ -41,7 +41,7 @@ export class UsersController {
     return this.usersService.updateMe(req.user.id, dto);
   }
 
-  // Profile photos — the file was uploaded straight to the bucket, so the
+  // Profile photos — the file was uploaded straight to Cloudinary, so the
   // body only carries the key it was stored under.
   @Post('me/avatar')
   @Roles(UserRole.ADMIN, UserRole.USER)

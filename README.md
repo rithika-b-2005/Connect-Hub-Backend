@@ -112,70 +112,44 @@ It should return `{"status":"ok"}` after successfully connecting to MySQL.
 Then set the frontend Netlify environment variable `VITE_API_URL` to
 `https://<your-render-service>.onrender.com` and trigger a new frontend deploy.
 
-Uploaded files currently use local disk storage. Ephemeral service filesystems
-can lose uploads during restarts or redeploys, so move uploads to durable object
-storage or attach a persistent disk before relying on production media uploads.
-
 ### Media storage
 
-Images and videos live in an S3-compatible bucket — Cloudflare R2 by default.
-They do **not** live on this service's disk: Render's filesystem is ephemeral,
-so a file written there is gone after the next deploy, and the request body
-would have to carry the whole video through this process.
+Images and videos are stored in Cloudinary, not on this service's disk.
 
 The browser uploads the file itself:
 
 1. `POST /media/presign` with the kind, the MIME type and the size. The API
-   checks the type against the allowlist, builds a key and answers with a
-   presigned URL.
-2. The browser `PUT`s the bytes straight to the bucket.
+   checks the type against the allowlist, builds a public ID and returns
+   short-lived signed upload parameters. The Cloudinary API secret stays on
+   the backend.
+2. The browser sends the file directly to Cloudinary using those parameters.
 3. `POST /posts` (or `/users/me/avatar`) carries the key. The API derives the
    URL, the type and the MIME type from the key, so a client cannot make the
    app render an address of its choosing.
 
-**Cloudflare R2 setup**
+The API also accepts `multipart/form-data` on `POST /posts` with text fields
+`title` and `description` plus up to five files in the `media` field. It
+validates and buffers these files in memory before uploading them to
+Cloudinary. The browser's signed-upload flow is preferred for large media
+because the file bytes go directly to Cloudinary instead of through the API.
 
-1. Dashboard → R2 → *Create bucket*, name it `connect-hub-media`.
-2. R2 → *Manage R2 API Tokens* → *Create API Token* → *Object Read & Write*.
-   Copy the **Access Key ID** and **Secret Access Key**.
-3. R2 → the bucket → *Settings* → *Public access* → *Connect a domain* (or use
-   the `r2.dev` address it offers for development).
-4. The bucket needs a CORS policy so the browser may PUT to it. Bucket →
-   *Settings* → *CORS policy*:
+**Cloudinary setup**
 
-   ```json
-   [
-     {
-       "AllowedOrigins": [
-         "https://connect-hub-frontend-1.onrender.com",
-         "http://localhost:5173",
-         "http://localhost:4173"
-       ],
-       "AllowedMethods": ["GET", "HEAD", "PUT"],
-       "AllowedHeaders": ["Content-Type"],
-       "ExposeHeaders": ["ETag"],
-       "MaxAgeSeconds": 3600
-     }
-   ]
-   ```
-
-5. Set these environment variables on the service:
+1. Create a Cloudinary account and open the dashboard.
+2. From **View API Keys**, copy the cloud name, API key, and API secret. Keep
+   the API secret private; if it was exposed, rotate it before use.
+3. Configure these variables in the backend environment (locally in the
+   backend `.env`, or in Render's backend service environment):
 
    | Variable | Value |
    | --- | --- |
-   | `S3_ENDPOINT` | `https://<account-id>.r2.cloudflarestorage.com` |
-   | `S3_REGION` | `auto` |
-   | `S3_BUCKET` | `connect-hub-media` |
-   | `S3_ACCESS_KEY_ID` | from the API token |
-   | `S3_SECRET_ACCESS_KEY` | from the API token |
-   | `S3_PUBLIC_URL` | the bucket's public base, e.g. `https://pub-<hash>.r2.dev/connect-hub-media` |
+   | `CLOUDINARY_CLOUD_NAME` | Cloud name from the Cloudinary dashboard |
+   | `CLOUDINARY_API_KEY` | API key from the Cloudinary dashboard |
+   | `CLOUDINARY_API_SECRET` | API secret from the Cloudinary dashboard |
 
-`GET /media/status` answers `{"configured": true}` once they are all set. Until
-then uploads are refused with a 503 and the app says so, rather than silently
-writing to a disk that will be wiped.
-
-The same code works with Backblaze B2 or AWS S3 — only the endpoint and the
-public base change.
+`GET /media/status` answers `{"configured": true}` once they are set. Until
+then uploads are refused with a 503. Never place the API secret in frontend
+environment variables or browser code.
 
 ### Database environment variables
 

@@ -1,7 +1,7 @@
 import { IsNotEmpty, IsString, Matches } from 'class-validator';
 
 /**
- * A profile photo that was uploaded straight to the bucket.
+ * A profile photo that was uploaded straight to Cloudinary.
  *
  * The client sends the key it got from the presign endpoint; the URL is
  * derived from it on the server.

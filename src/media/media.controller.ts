@@ -20,9 +20,8 @@ import { PresignMediaDto } from './dto/presign-media.dto';
 /**
  * Hands out the URLs the browser uploads to.
  *
- * The file itself never comes here: the browser PUTs it straight to the
- * bucket, so the API does not have to buffer it, and the size limit is the
- * bucket's rather than this service's.
+ * The API signs upload parameters while the browser sends the file directly
+ * to Cloudinary.
  */
 @Controller('media')
 @UseGuards(JwtAuthGuard)
@@ -37,7 +36,7 @@ export class MediaController {
   async presign(@Body() dto: PresignMediaDto) {
     if (!isStorageConfigured()) {
       throw new HttpException(
-        'Media storage is not configured. Set S3_ENDPOINT, S3_REGION, S3_BUCKET, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY and S3_PUBLIC_URL.',
+        'Media storage is not configured. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET.',
         HttpStatus.SERVICE_UNAVAILABLE,
       );
     }
@@ -57,8 +56,8 @@ export class MediaController {
     }
 
     const key = objectKeyFor(dto.kind, dto.contentType);
-    const { uploadUrl, publicUrl, headers } = await presignUpload(key, dto.contentType);
+    const { uploadUrl, publicUrl, fields } = await presignUpload(key);
 
-    return { key, uploadUrl, publicUrl, headers };
+    return { key, uploadUrl, publicUrl, fields };
   }
 }

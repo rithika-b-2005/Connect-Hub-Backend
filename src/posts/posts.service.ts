@@ -337,7 +337,7 @@ export class PostsService {
 
     await this.prisma.post.delete({ where: { id: postId } });
 
-    // The rows cascade; the objects in the bucket do not. Clean them up.
+    // The rows cascade; the Cloudinary assets do not. Clean them up.
     await Promise.all(post.media.map((m) => deleteObject(m.filename)));
 
     return { message: 'Post deleted' };

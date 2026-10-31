@@ -19,14 +19,12 @@ async function bootstrap() {
     'http://127.0.0.1:4173',
   ];
 
-  const allowedOrigins = (
-    process.env.CORS_ORIGINS ?? defaultOrigins.join(',')
-  )
+  const allowedOrigins = (process.env.CORS_ORIGINS ?? defaultOrigins.join(','))
     .split(',')
     .map((origin) => origin.trim().replace(/\/+$/, ''))
     .filter(Boolean);
   app.enableCors({ origin: allowedOrigins });
-  // Media is served from the bucket, not from here: this service never holds
+  // Media is served from Cloudinary, not from here: this service never holds
   // the bytes, so there is no directory to expose and no file to lose when the
   // service is redeployed.
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));

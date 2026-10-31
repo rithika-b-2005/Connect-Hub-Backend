@@ -129,7 +129,7 @@ export class UsersService implements OnModuleInit {
       throw new NotFoundException('User not found');
     }
 
-    // Replace, don't accumulate: remove the previous photo from the bucket
+    // Replace, don't accumulate: remove the previous photo from Cloudinary.
     const old = user[field];
     if (old) {
       const oldKey = keyFromUrl(old);
@@ -181,9 +181,7 @@ export class UsersService implements OnModuleInit {
         where: { role: UserRole.ADMIN },
       });
       if (adminCount <= 1) {
-        throw new BadRequestException(
-          'Cannot demote the last remaining admin',
-        );
+        throw new BadRequestException('Cannot demote the last remaining admin');
       }
     }
 
@@ -211,7 +209,9 @@ export class UsersService implements OnModuleInit {
       throw new NotFoundException('User not found');
     }
 
-    const generated = dto.newPassword ? undefined : randomBytes(9).toString('base64url');
+    const generated = dto.newPassword
+      ? undefined
+      : randomBytes(9).toString('base64url');
     const password = dto.newPassword ?? generated!;
 
     await this.prisma.user.update({
@@ -245,13 +245,11 @@ export class UsersService implements OnModuleInit {
         where: { role: UserRole.ADMIN },
       });
       if (adminCount <= 1) {
-        throw new BadRequestException(
-          'Cannot delete the last remaining admin',
-        );
+        throw new BadRequestException('Cannot delete the last remaining admin');
       }
     }
 
-    // The database cascades the rows; the objects in the bucket do not — clean
+    // The database cascades the rows; the Cloudinary assets do not — clean
     // those up ourselves while we still know what they are.
     const media = await this.prisma.postMedia.findMany({
       where: { post: { userId: id } },

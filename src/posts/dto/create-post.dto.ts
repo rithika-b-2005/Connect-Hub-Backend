@@ -10,7 +10,7 @@ import {
 } from 'class-validator';
 
 /**
- * A file that was uploaded straight to the bucket.
+ * A file that was uploaded straight to Cloudinary.
  *
  * The client sends the key it got from the presign endpoint. The URL, the type
  * and the MIME type are derived from the key on the server, so a client
@@ -27,9 +27,11 @@ export class MediaRefDto {
 }
 
 export class CreatePostDto {
+  @IsString()
   @IsNotEmpty()
   title: string;
 
+  @IsString()
   @IsNotEmpty()
   description: string;
 
