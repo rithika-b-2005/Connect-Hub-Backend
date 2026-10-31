@@ -116,6 +116,24 @@ Uploaded files currently use local disk storage. Ephemeral service filesystems
 can lose uploads during restarts or redeploys, so move uploads to durable object
 storage or attach a persistent disk before relying on production media uploads.
 
+### Database environment variables
+
+The service is configured with `DB_HOST`, `DB_PORT`, `DB_USERNAME`,
+`DB_PASSWORD`, `DB_NAME` and `DB_SSL`. That is what the runtime reads —
+`@prisma/adapter-mariadb` takes an explicit config object
+(`src/prisma/prisma.service.ts`), not a URL.
+
+The Prisma CLI reads a URL instead, and the start command runs
+`prisma migrate deploy` before starting the app. `prisma.config.ts` builds
+that URL from the `DB_*` variables when `DATABASE_URL` is not set, so the
+service does not need a second set of credentials. Without that fallback the
+CLI connects to a placeholder host name, every deploy fails at the migrate
+step, and the previous build keeps serving — the change never reaches the
+running app, and the only symptom is an API that keeps behaving like the
+build before it.
+
+`DATABASE_URL` still overrides it when it is set.
+
 ### Primary keys are UUIDs
 
 Every model uses a `CHAR(36)` id instead of an autoincrementing integer. Two
