@@ -5,7 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 export class NotificationsService {
   constructor(private prisma: PrismaService) {}
 
-  findForUser(userId: number) {
+  findForUser(userId: string) {
     return this.prisma.notification.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
@@ -21,7 +21,7 @@ export class NotificationsService {
     });
   }
 
-  async markRead(id: number, userId: number) {
+  async markRead(id: string, userId: string) {
     const notification = await this.prisma.notification.findFirst({
       where: { id, userId },
       select: { id: true, readAt: true },
@@ -39,7 +39,7 @@ export class NotificationsService {
     return { id, read: true };
   }
 
-  async markAllRead(userId: number) {
+  async markAllRead(userId: string) {
     const result = await this.prisma.notification.updateMany({
       where: { userId, readAt: null },
       data: { readAt: new Date() },

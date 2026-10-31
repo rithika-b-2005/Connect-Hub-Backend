@@ -26,7 +26,7 @@ enum PostStatus {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
+  id        String   @id @default(uuid()) @db.Char(36)
   name      String   @db.VarChar(255)
   email     String   @unique @db.VarChar(255)
   password  String   @db.VarChar(255)
@@ -45,15 +45,15 @@ model User {
 }
 
 model Post {
-  id               Int        @id @default(autoincrement())
+  id               String     @id @default(uuid()) @db.Char(36)
   title            String     @db.VarChar(255)
   description      String     @db.Text
   views            Int        @default(0)
   status           PostStatus @default(active)
   moderationReason String?    @db.VarChar(1000)
   moderatedAt      DateTime?  @db.DateTime(6)
-  authorId         Int?
-  author           User?      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  userId           String?    @db.Char(36)
+  author           User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt        DateTime   @default(now()) @db.DateTime(6)
 
   media         PostMedia[]
@@ -65,14 +65,14 @@ model Post {
   // InnoDB creates an index for every foreign key that is not already
   // covered by one, so these exist on the live database. Declaring them
   // keeps Prisma's view of the schema equal to the real thing.
-  @@index([authorId])
+  @@index([userId])
   @@map("posts")
 }
 
 model Like {
-  id        Int      @id @default(autoincrement())
-  userId    Int?
-  postId    Int?
+  id        String   @id @default(uuid()) @db.Char(36)
+  userId    String?  @db.Char(36)
+  postId    String?  @db.Char(36)
   user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   post      Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now()) @db.DateTime(6)
@@ -85,10 +85,10 @@ model Like {
 }
 
 model Comment {
-  id        Int      @id @default(autoincrement())
+  id        String   @id @default(uuid()) @db.Char(36)
   content   String   @db.Text
-  userId    Int?
-  postId    Int?
+  userId    String?  @db.Char(36)
+  postId    String?  @db.Char(36)
   user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   post      Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now()) @db.DateTime(6)
@@ -99,8 +99,8 @@ model Comment {
 }
 
 model PostView {
-  postId   Int
-  userId   Int
+  postId   String   @db.Char(36)
+  userId   String   @db.Char(36)
   viewedAt DateTime @default(now()) @db.DateTime(6)
   post     Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -111,9 +111,9 @@ model PostView {
 }
 
 model Notification {
-  id        Int       @id @default(autoincrement())
-  userId    Int
-  postId    Int?
+  id        String    @id @default(uuid()) @db.Char(36)
+  userId    String    @db.Char(36)
+  postId    String?   @db.Char(36)
   type      String    @db.VarChar(32)
   message   String    @db.VarChar(1000)
   createdAt DateTime  @default(now()) @db.DateTime(6)
@@ -126,12 +126,12 @@ model Notification {
 }
 
 model PostMedia {
-  id       Int       @id @default(autoincrement())
+  id       String    @id @default(uuid()) @db.Char(36)
   filename String    @db.VarChar(255)
   url      String    @db.VarChar(255)
   type     MediaType
   mimeType String    @db.VarChar(255)
-  postId   Int?
+  postId   String?   @db.Char(36)
   post     Post?     @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@index([postId])

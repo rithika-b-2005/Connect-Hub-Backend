@@ -13,7 +13,7 @@ import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePostDto } from './dto/create-post.dto';
 
-type AuthUser = { id: number; role: UserRole };
+type AuthUser = { id: string; role: UserRole };
 
 @Injectable()
 export class PostsService {
@@ -25,7 +25,7 @@ export class PostsService {
         me.role === UserRole.ADMIN
           ? {}
           : {
-              OR: [{ status: { not: PostStatus.hidden } }, { authorId: me.id }],
+              OR: [{ status: { not: PostStatus.hidden } }, { userId: me.id }],
             },
       orderBy: { createdAt: 'desc' },
       include: {
@@ -45,7 +45,7 @@ export class PostsService {
       views: p.views,
       createdAt: p.createdAt,
       author: {
-        id: p.author?.id ?? 0,
+        id: p.author?.id ?? null,
         name: p.author?.name ?? 'Unknown',
         role: p.author?.role ?? UserRole.USER,
         avatarUrl: p.author?.avatarUrl ?? null,
@@ -63,7 +63,7 @@ export class PostsService {
     }));
   }
 
-  async findOne(postId: number, me: AuthUser) {
+  async findOne(postId: string, me: AuthUser) {
     const post = await this.prisma.post.findUnique({
       where: { id: postId },
       include: {
@@ -131,7 +131,7 @@ export class PostsService {
       views,
       createdAt: post.createdAt,
       author: {
-        id: post.author?.id ?? 0,
+        id: post.author?.id ?? null,
         name: post.author?.name ?? 'Unknown',
         role: post.author?.role ?? UserRole.USER,
         avatarUrl: post.author?.avatarUrl ?? null,
@@ -157,7 +157,7 @@ export class PostsService {
     };
   }
 
-  async createComment(postId: number, content: string, me: AuthUser) {
+  async createComment(postId: string, content: string, me: AuthUser) {
     const normalizedContent = content.trim();
     if (!normalizedContent) {
       throw new BadRequestException('Comment cannot be empty');
@@ -211,7 +211,7 @@ export class PostsService {
     });
   }
 
-  async toggleLike(postId: number, me: AuthUser) {
+  async toggleLike(postId: string, me: AuthUser) {
     const post = await this.prisma.post.findUnique({
       where: { id: postId },
       select: { id: true, status: true },
@@ -248,13 +248,13 @@ export class PostsService {
   }
 
   async moderate(
-    postId: number,
+    postId: string,
     status: PostStatus,
     reason: string | undefined,
   ) {
     const post = await this.prisma.post.findUnique({
       where: { id: postId },
-      select: { id: true, title: true, authorId: true, status: true },
+      select: { id: true, title: true, userId: true, status: true },
     });
     if (!post) {
       throw new NotFoundException('Post not found');
@@ -296,10 +296,10 @@ export class PostsService {
         },
       });
 
-      if (post.authorId !== null) {
+      if (post.userId !== null) {
         await tx.notification.create({
           data: {
-            userId: post.authorId,
+            userId: post.userId,
             postId,
             type,
             message,
@@ -311,7 +311,7 @@ export class PostsService {
     });
   }
 
-  async remove(postId: number, me: AuthUser) {
+  async remove(postId: string, me: AuthUser) {
     const post = await this.prisma.post.findUnique({
       where: { id: postId },
       include: {

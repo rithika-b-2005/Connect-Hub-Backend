@@ -68,7 +68,7 @@ export class SeedService implements OnModuleInit {
             title: 'Welcome to ConnectHub!',
             description:
               'Excited to join this community. Looking forward to sharing updates and learning from everyone here.',
-            authorId: alex.id,
+            userId: alex.id,
             views: 142,
           },
         }),
@@ -77,7 +77,7 @@ export class SeedService implements OnModuleInit {
             title: 'Tips for writing clean React components',
             description:
               'Keep components small, lift state only when needed, and prefer composition over prop drilling. A thread on what worked for our team.',
-            authorId: priya.id,
+            userId: priya.id,
             views: 387,
           },
         }),
@@ -86,7 +86,7 @@ export class SeedService implements OnModuleInit {
             title: 'Our journey migrating to NestJS',
             description:
               'We moved our Express API to NestJS over two sprints. Modules and dependency injection made the codebase far easier to navigate.',
-            authorId: rahul.id,
+            userId: rahul.id,
             views: 256,
           },
         }),
@@ -95,7 +95,7 @@ export class SeedService implements OnModuleInit {
             title: 'Design systems save time',
             description:
               'Adopting a shared color and spacing scale cut our UI review time in half. Consistency beats creativity in enterprise apps.',
-            authorId: alex.id,
+            userId: alex.id,
             views: 198,
           },
         }),
@@ -104,13 +104,13 @@ export class SeedService implements OnModuleInit {
             title: 'MySQL indexing basics every dev should know',
             description:
               'A quick primer on when to add indexes, how composite indexes work, and reading EXPLAIN output without fear.',
-            authorId: priya.id,
+            userId: priya.id,
             views: 310,
           },
         }),
       ]);
 
-      const likePairs: Array<[number, number]> = [
+      const likePairs: Array<[string, string]> = [
         [priya.id, posts[0].id],
         [rahul.id, posts[0].id],
         [alex.id, posts[1].id],

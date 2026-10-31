@@ -5,7 +5,7 @@ import {
   Get,
   Patch,
   Param,
-  ParseIntPipe,
+  ParseUUIDPipe,
   Post,
   Request,
   UploadedFiles,
@@ -34,7 +34,7 @@ export class PostsController {
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number, @Request() req) {
+  findOne(@Param('id', ParseUUIDPipe) id: string, @Request() req) {
     return this.postsService.findOne(id, req.user);
   }
 
@@ -55,14 +55,14 @@ export class PostsController {
 
   @Post(':id/like')
   @Roles(UserRole.USER)
-  toggleLike(@Param('id', ParseIntPipe) id: number, @Request() req) {
+  toggleLike(@Param('id', ParseUUIDPipe) id: string, @Request() req) {
     return this.postsService.toggleLike(id, req.user);
   }
 
   @Post(':id/comments')
   @Roles(UserRole.USER)
   createComment(
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: CreateCommentDto,
     @Request() req,
   ) {
@@ -72,14 +72,14 @@ export class PostsController {
   @Patch(':id/moderation')
   @Roles(UserRole.ADMIN)
   moderate(
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ModeratePostDto,
   ) {
     return this.postsService.moderate(id, dto.status, dto.reason);
   }
 
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number, @Request() req) {
+  remove(@Param('id', ParseUUIDPipe) id: string, @Request() req) {
     return this.postsService.remove(id, req.user);
   }
 }

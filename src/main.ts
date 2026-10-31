@@ -7,8 +7,21 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
+  // Trusted origins out of the box: the deployed frontend, plus the Vite dev
+  // server (5173) and the Vite preview server (4173) used by the Playwright
+  // suite. Without the local entries the browser blocks every API call made
+  // from a dev machine, because the browser enforces CORS even when the
+  // request itself is fine.
+  const defaultOrigins = [
+    'https://connect-hub-frontend-1.onrender.com',
+    'http://localhost:5173',
+    'http://localhost:4173',
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:4173',
+  ];
+
   const allowedOrigins = (
-    process.env.CORS_ORIGINS ?? 'http://localhost:5173'
+    process.env.CORS_ORIGINS ?? defaultOrigins.join(',')
   )
     .split(',')
     .map((origin) => origin.trim().replace(/\/+$/, ''))

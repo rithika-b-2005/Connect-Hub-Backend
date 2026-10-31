@@ -14,7 +14,7 @@ import { LoginDto } from './dto/login.dto';
 import { SignupDto } from './dto/signup.dto';
 
 type TokenUser = {
-  id: number;
+  id: string;
   name: string;
   email: string;
   password: string;

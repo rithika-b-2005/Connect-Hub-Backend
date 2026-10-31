@@ -18,7 +18,7 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 
-type Actor = { id: number; role: UserRole };
+type Actor = { id: string; role: UserRole };
 
 @Injectable()
 export class UsersService implements OnModuleInit {
@@ -75,7 +75,7 @@ export class UsersService implements OnModuleInit {
     });
   }
 
-  async getMe(id: number) {
+  async getMe(id: string) {
     const user = await this.prisma.user.findUnique({
       where: { id },
       select: publicUserSelect,
@@ -86,7 +86,7 @@ export class UsersService implements OnModuleInit {
     return user;
   }
 
-  async updateMe(id: number, dto: UpdateProfileDto) {
+  async updateMe(id: string, dto: UpdateProfileDto) {
     const user = await this.prisma.user.findUnique({
       where: { id },
       select: { ...publicUserSelect, password: true },
@@ -122,7 +122,7 @@ export class UsersService implements OnModuleInit {
   }
 
   async setPhoto(
-    id: number,
+    id: string,
     field: 'avatarUrl' | 'coverUrl',
     file: Express.Multer.File,
   ) {
@@ -151,7 +151,7 @@ export class UsersService implements OnModuleInit {
 
   // --- admin operations ---
 
-  async findOne(id: number) {
+  async findOne(id: string) {
     const user = await this.prisma.user.findUnique({
       where: { id },
       select: publicUserSelect,
@@ -162,7 +162,7 @@ export class UsersService implements OnModuleInit {
     return user;
   }
 
-  async updateByAdmin(id: number, dto: UpdateUserDto, actor: Actor) {
+  async updateByAdmin(id: string, dto: UpdateUserDto, actor: Actor) {
     const user = await this.prisma.user.findUnique({
       where: { id },
       select: publicUserSelect,
@@ -208,7 +208,7 @@ export class UsersService implements OnModuleInit {
     });
   }
 
-  async resetPassword(id: number, dto: ResetPasswordDto) {
+  async resetPassword(id: string, dto: ResetPasswordDto) {
     const user = await this.prisma.user.findUnique({
       where: { id },
       select: { id: true },
@@ -232,7 +232,7 @@ export class UsersService implements OnModuleInit {
     };
   }
 
-  async remove(id: number, actor: Actor) {
+  async remove(id: string, actor: Actor) {
     // Deleting yourself removes the only way back into the admin API.
     if (id === actor.id) {
       throw new BadRequestException('You cannot delete your own account');
@@ -260,7 +260,7 @@ export class UsersService implements OnModuleInit {
     // The database cascades the rows; the files on disk do not — clean those
     // up ourselves while we still know what they are.
     const media = await this.prisma.postMedia.findMany({
-      where: { post: { authorId: id } },
+      where: { post: { userId: id } },
       select: { filename: true },
     });
     await Promise.all([

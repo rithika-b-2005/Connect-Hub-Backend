@@ -8,7 +8,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: CORS_ORIGINS
-        value: https://connectposthub.netlify.app
+        value: https://connect-hub-frontend-1.onrender.com,http://localhost:5173,http://localhost:4173
       - key: DB_HOST
         sync: false
       - key: DB_PORT

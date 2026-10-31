@@ -2,10 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { UserRole } from '../common/enums';
 import { PrismaService } from '../prisma/prisma.service';
 
-type AuthUser = { id: number; role: UserRole };
+type AuthUser = { id: string; role: UserRole };
 
 type RawChartRow = {
-  id: number | bigint;
+  id: string;
   title: string;
   views: number | bigint;
   createdAt: Date;
@@ -52,17 +52,17 @@ export class AnalyticsService {
     };
   }
 
-  private async userSummary(userId: number) {
+  private async userSummary(userId: string) {
     const myPosts = await this.prisma.post.count({
-      where: { authorId: userId },
+      where: { userId },
     });
 
     const likesReceived = await this.prisma.like.count({
-      where: { post: { authorId: userId } },
+      where: { post: { userId } },
     });
 
     const viewsAgg = await this.prisma.post.aggregate({
-      where: { authorId: userId },
+      where: { userId },
       _sum: { views: true },
     });
 
@@ -86,9 +86,9 @@ export class AnalyticsService {
   //
   // CAST(... AS SIGNED) keeps the count a plain integer: MySQL returns
   // COUNT() as a BIGINT, and a BigInt cannot be serialised to JSON.
-  private async topPosts(limit: number, authorId?: number) {
+  private async topPosts(limit: number, userId?: string) {
     const rows =
-      authorId === undefined
+      userId === undefined
         ? await this.prisma.$queryRaw<RawChartRow[]>`
             SELECT
               p.id AS id,
@@ -99,7 +99,7 @@ export class AnalyticsService {
               CAST(COUNT(l.id) AS SIGNED) AS likes
             FROM posts p
             LEFT JOIN likes l ON l.postId = p.id
-            LEFT JOIN users u ON u.id = p.authorId
+            LEFT JOIN users u ON u.id = p.userId
             GROUP BY p.id, p.title, p.views, p.createdAt, u.name
             ORDER BY likes DESC
             LIMIT ${limit}
@@ -114,8 +114,8 @@ export class AnalyticsService {
               CAST(COUNT(l.id) AS SIGNED) AS likes
             FROM posts p
             LEFT JOIN likes l ON l.postId = p.id
-            LEFT JOIN users u ON u.id = p.authorId
-            WHERE p.authorId = ${authorId}
+            LEFT JOIN users u ON u.id = p.userId
+            WHERE p.userId = ${userId}
             GROUP BY p.id, p.title, p.views, p.createdAt, u.name
             ORDER BY p.createdAt DESC
             LIMIT ${limit}
@@ -126,7 +126,7 @@ export class AnalyticsService {
 
   private toChartRow(row: RawChartRow) {
     return {
-      id: Number(row.id),
+      id: row.id,
       title: String(row.title),
       authorName: String(row.authorName),
       likes: Number(row.likes),

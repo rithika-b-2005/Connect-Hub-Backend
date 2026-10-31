@@ -6,7 +6,7 @@ import { verifyTokenBinding } from '../common/token-binding';
 import { PrismaService } from '../prisma/prisma.service';
 
 type TokenPayload = {
-  sub: number;
+  sub: string;
   email: string;
   role: string;
   ver?: string;
@@ -32,6 +32,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   // tokens that were already issued — a stateless JWT cannot know any of that
   // on its own. The role comes from the database, never from the token.
   async validate(payload: TokenPayload) {
+    if (typeof payload.sub !== 'string') {
+      throw new UnauthorizedException('Session expired, sign in again');
+    }
+
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
       select: { id: true, email: true, role: true, password: true },
