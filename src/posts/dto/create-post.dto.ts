@@ -6,7 +6,6 @@ import {
   IsOptional,
   IsString,
   Matches,
-  MaxLength,
   ValidateNested,
 } from 'class-validator';
 
@@ -29,7 +28,6 @@ export class MediaRefDto {
 
 export class CreatePostDto {
   @IsNotEmpty()
-  @MaxLength(150)
   title: string;
 
   @IsNotEmpty()
