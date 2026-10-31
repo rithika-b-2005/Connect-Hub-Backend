@@ -116,6 +116,35 @@ Uploaded files currently use local disk storage. Ephemeral service filesystems
 can lose uploads during restarts or redeploys, so move uploads to durable object
 storage or attach a persistent disk before relying on production media uploads.
 
+### Primary keys are UUIDs
+
+Every model uses a `CHAR(36)` id instead of an autoincrementing integer. Two
+things about that are worth knowing before changing the schema.
+
+**A foreign key needs matching collations.** The tables in this database were
+created with two different collations — the ones from `0_init` use the server
+default `utf8mb4_0900_ai_ci`, the ones added later use `utf8mb4_unicode_ci`.
+MySQL refuses a foreign key between two `CHAR(36)` columns with different
+collations, and the failure lands on the `ALTER TABLE ... ADD CONSTRAINT`
+statement, long after the columns were converted. Every `CHAR(36)` column in
+the migrations therefore states its charset and collation explicitly:
+
+```sql
+`id` CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL
+```
+
+Keep that on any new column that takes part in a foreign key.
+
+**`prisma/migrations/migration_lock.toml` is required.** Without it Prisma
+cannot tell which connector the migrations belong to, and `prisma migrate
+deploy` — which the start command runs — fails before it applies anything.
+
+To check what the database looks like against the schema:
+
+```bash
+npx prisma migrate status --schema prisma/schema.prisma
+```
+
 ## Demo accounts (seeded)
 
 | Email                | Password                                                  | Role  |
